@@ -1,6 +1,6 @@
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule, ObserveInstrument } from './app.module.js';
-import { ValidationPipe } from '@nestjs/common';
+import {  ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -12,6 +12,12 @@ async function bootstrap() {
       whitelist: true,
       transform: true,
     }),
+  );
+
+  app.useGlobalInterceptors(
+  new ClassSerializerInterceptor(
+      app.get(Reflector),
+    ),
   );
 
   await app.listen(process.env.PORT ?? 3000);

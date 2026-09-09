@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -27,7 +27,7 @@ export class UsersService {
     }
 
     
-    const saltOrRounds = 10;
+    const saltOrRounds = await bcrypt.genSalt();
     const passwordHash = await bcrypt.hash(createUserDto.password, saltOrRounds);
 
     const user = this.usersRepository.create({
@@ -44,15 +44,100 @@ export class UsersService {
     return this.usersRepository.find();
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} user`;
+  async findOne(id: number) {
+
+    const user = await this.usersRepository.findOne({
+      where: {
+        id: id,
+      },
+    });
+
+    if(!user){
+      throw new NotFoundException(
+        'User not found',
+      );
+    }
+  
+    return user;
   }
 
-  update(id: number, updateUserDto: UpdateUserDto) {
-    return `This action updates a #${id} user`;
+  async findByEmail(email: string){
+
+    const user = await this.usersRepository.findOne({
+      where: { 
+        email: email
+      }
+    })
+
+    return user
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} user`;
+  async update(id: number, updateUserDto: UpdateUserDto) {
+    const user = await this.usersRepository.findOne({
+      where: { id },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (updateUserDto.email) {
+      const userEmailAlreadyUsed =
+        await this.usersRepository.findOne({
+          where: {
+            email: updateUserDto.email,
+          },
+        });
+
+      if (
+        userEmailAlreadyUsed &&
+        userEmailAlreadyUsed.id !== id
+      ) {
+        throw new ConflictException(
+          'Email already registered',
+        );
+      }
+    }
+
+    if (updateUserDto.firstName !== undefined) {
+      user.firstName = updateUserDto.firstName;
+    }
+
+    if (updateUserDto.lastName !== undefined) {
+      user.lastName = updateUserDto.lastName;
+    }
+
+    if (updateUserDto.email !== undefined) {
+      user.email = updateUserDto.email;
+    }
+
+    if (updateUserDto.password !== undefined) {
+      const saltOrRounds = await bcrypt.genSalt();
+      user.passwordHash = await bcrypt.hash(
+        updateUserDto.password,
+        saltOrRounds,
+      );
+    }
+
+    const updatedUser =
+      await this.usersRepository.save(user);
+
+    return updatedUser;
+  }
+
+  async remove(id: number): Promise<void> {
+
+    const user = await this.usersRepository.findOne({
+      where: {
+        id: id,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.usersRepository.remove(user);
   }
 }
+
